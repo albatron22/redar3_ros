@@ -1,3 +1,26 @@
+# ИЗМЕНЕНИЯ В ВЕРСИИ ПАКЕТА ДЛЯ МАНИПУЛЯТОРА REDAR3 С ПРОШИВКОЙ V4.4
+* Манпулятор REDAR3
+* Контроллер манпулятора: Teensy 4.1
+* Версия прошивки: AR4_teensy41_sketch_v4.4 (в прошивку внесены небольшие изменения см. в Obsidian).
+
+*Данная версия пакета основовыается на репозитории https://github.com/ongdexter/ar3_core.git.*
+
+Оснновные изменения коснулись драйвера контроллера Teensу 4.1
+В файле [TeensyDriver.cpp](/ar3_hardware_drivers/src/TeensyDriver.cpp) внесены следующие изменения:
+
+1. Startup процедура. Команды начальной инициализации Teensy 4.1 взяты из анализа протокола HMI при включении (см. в Obsidian). Оно включает основную команду `"UP"` - UPDATE PARAMS. На этой драйвер ожидает положительный ответ "Done\n", после прихода которой связь считается успешной установленной. Остальный команды процедру инициализации (send pos, calib enc) игнорируются за ненадобностью.
+2. Чтения текущей позиции звеньеы (углы поворота Joint1-6). Команда запрос "RP\n". Ответ со стороны Teensy 4.1 не включает заголовка, а 
+сразу начинается с индентификатора первого звена "A...". Значения углов передаются в градусах в вещественном формате.
+3. Измененена команда установки требуемого положения звеньев в `update()`. Она начинается с заголовка `"RJ"`.  Включаеьтся в себя требуемые углы в градусах, максимальную скорость, ускорения разгона и торможения и др. параметры (котоорые лучше не трогать, например Loop mode, указывающий на работу без энкодеров)
+4. Убрана команда установки скоростей вращения звеньев (оставлена пустай функция-заглушка)
+5. Внесены изменения в функциях пересчета значений импульсов с энкодера и углы и наборотв. Теперь этого не требуется, так как энкодеры отсуствуют, а обратная связь по углам и требуемые углы передаются сразу в градусах
+
+Содержание конфигурационных файлов также было изменено в соответсвии с новыми параметрами. Главные изменения:
+1. `ar3_hardware_interface/config/hardware_driver.yaml`: имя serial порта и скорость соединения. Прописанные значения количества импульсов на градус в дальнейшем не используются.
+2. `ar3_hardware_interface/config/hardware_interface.yaml`: повышена частота дискретизации контроллера управления траекторией. Таким образом достигается плавность движения.
+3. `ar3_hardware_interface/config/joint_offsets.yaml`: значения offsets это не калибпровочные значения смещений угла как HMI. Данные значения подобраны, чтоюы модель в rviz совпадало с реальным роботом.
+4. `ar3_moveit_config/config/joint_limits.yaml`: корректировки в димитах по осям (но лучше их не трогать, потому что когда стал менять J2 модель в rviz сломалась...)
+
 # AR3 Core Software
 This repository provides the software for control of the AR3 arm with ros_control and MoveIt. I hope to provide fellow robotic arm enthusiasts with a starting point to explore using ROS for controlling the arm. The baseline implementation is designed to accomodate the original hardware and firmware, including the message structures for communication. Moving forward, I will do my best to continue to keep it accessible. I plan to explore some interesting concepts that I have in mind for on-arm vision, grippers and human-robot interaction and I will share my projects here if possible.
 

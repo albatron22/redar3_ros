@@ -1,0 +1,6 @@
+<launch>
+  <node name="ar3_move_node" pkg="ar3_control" type="ar3_move_node" respawn="false" output="screen"></node>
+  <param name="roll" value="0.0"/>
+  <param name="pitch" value="90.0"/>
+  <param name="yaw" value="0.0"/>
+</launch>

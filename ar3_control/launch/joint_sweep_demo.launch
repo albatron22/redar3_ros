@@ -1,0 +1,18 @@
+<launch>
+  <!-- Joint sweep demo: moves every joint of the 'manipulator' group
+       through its range of motion, one joint at a time.
+       Requires a bringup layer to be running (e.g. demo.launch). -->
+  <arg name="step_mode" default="true"/>
+  <arg name="amplitude_scale" default="0.5"/>
+  <arg name="range_fraction" default="1.0"/>
+  <arg name="velocity_scale" default="0.3"/>
+  <arg name="planning_time" default="5.0"/>
+
+  <node name="joint_sweep_demo_node" pkg="ar3_control" type="joint_sweep_demo" respawn="false" output="screen">
+    <param name="step_mode" value="$(arg step_mode)"/>
+    <param name="amplitude_scale" value="$(arg amplitude_scale)"/>
+    <param name="range_fraction" value="$(arg range_fraction)"/>
+    <param name="velocity_scale" value="$(arg velocity_scale)"/>
+    <param name="planning_time" value="$(arg planning_time)"/>
+  </node>
+</launch>

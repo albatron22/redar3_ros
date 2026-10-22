@@ -46,9 +46,12 @@ include_directories(${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIR} ${EIGEN3_INCLUDE
 
 add_executable(move_group_demo src/move_group_demo.cpp)
 add_executable(ar3_move_node src/ar3_move_node.cpp)
+add_executable(joint_sweep_demo src/joint_sweep_demo.cpp)
 target_link_libraries(move_group_demo ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 target_link_libraries(ar3_move_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(joint_sweep_demo ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 install(TARGETS move_group_demo DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(TARGETS ar3_move_node DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(TARGETS joint_sweep_demo DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

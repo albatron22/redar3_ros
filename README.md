@@ -21,6 +21,94 @@
 3. `ar3_hardware_interface/config/joint_offsets.yaml`: значения offsets это не калибпровочные значения смещений угла как HMI. Данные значения подобраны, чтоюы модель в rviz совпадало с реальным роботом.
 4. `ar3_moveit_config/config/joint_limits.yaml`: корректировки в димитах по осям (но лучше их не трогать, потому что когда стал менять J2 модель в rviz сломалась...)
 
+# ЗАПУСК В DOCKER (ROS Noetic)
+
+Пакеты разрабатывались под ROS Melodic/Noetic (ROS 1). На хост-машине установлен только ROS 2 Jazzy, поэтому сборка и запуск выполняются в Docker-контейнере на базе официального образа `ros:noetic-robot-focal`. Конфигурация находится в каталоге [`docker/`](docker): `Dockerfile`, `docker-compose.yml`, `entrypoint.sh`.
+
+## Состав образа
+
+Поверх официального образа установлены (см. `docker/Dockerfile`):
+* `ros-noetic-desktop` — RViz, rqt, joint_state_publisher, robot_state_publisher, xacro
+* `ros-noetic-moveit`, `ros-noetic-moveit-visual-tools` — MoveIt для планирования движений
+* `ros-noetic-pcl-ros`, `ros-noetic-pcl-conversions` — зависимости сборки `ar3_control`
+* `ros-noetic-ros-control`, `ros-noetic-ros-controllers` — стек ros_control для `ar3_hardware_interface`
+
+Симуляция Gazebo не установлена (для неё раскомментируйте `ros-noetic-gazebo-ros-pkgs` в `docker/Dockerfile` и пересоберите образ).
+
+**Важно:** `rosdep` для ROS Noetic не работает (дистрибутив EOL с мая 2025, индекс rosdep его пропускает), поэтому зависимости фиксируются явным списком пакетов в `Dockerfile`. При добавлении новых зависимостей в `package.xml` добавляйте соответствующий apt-пакет в `Dockerfile` вручную.
+
+## Возможности конфигурации
+
+* **Сеть общая с хостом** (`network_mode: host`) — ROS-мастер и ноды доступны без проброса портов.
+* **USB serial** (`privileged: true`) — контейнеру доступны все устройства `/dev/ttyACM*`, `/dev/ttyUSB*`; переподключение платы не требует перезапуска контейнера.
+* **Графика** — RViz и rqt работают на дисплее хоста (проброшен X11-сокет).
+* **Код на хосте** — монтируется весь workspace `~/ar3_ros1_ws`, артефакты сборки (`build/`, `devel/`) остаются на хосте в корне workspace; пересборка образа при изменении кода пакетов не требуется.
+* Внутри контейнера создан пользователь `albert` (UID/GID совпадают с хостовыми), артефакты сборки не ломают права на файлы. `sudo` работает без пароля.
+
+## Сборка и запуск
+
+Требуется установленный Docker с compose-плагином.
+
+```bash
+# 1. Сборка образа (один раз, ~5 минут; повторно — секунды за счёт кэша)
+cd ~/ar3_ros1_ws/src/docker
+docker compose build
+
+# 2. Запуск контейнера в фоне
+docker compose up -d
+
+# 3. Вход в контейнер
+docker compose exec ar3 bash
+```
+
+Внутри контейнера:
+```bash
+# сборка workspace (при первом запуске и после изменения кода)
+catkin_make
+
+# пример запуска: демо MoveIt + RViz без реального манипулятора
+roslaunch ar3_moveit_config demo.launch
+
+# работа с реальным манипулятором (два терминала внутри контейнера)
+roslaunch ar3_hardware_interface ar3_hardware_bringup.launch use_existing_calibrations:=true
+roslaunch ar3_moveit_config ar3_moveit_bringup.launch
+```
+
+## Графика (RViz) на хосте
+
+X11-авторизация для контейнера включается на хосте **один раз за X-сессию** (после перезагрузки — снова):
+```bash
+xhost +local:
+```
+Без этого RViz в контейнере упадёт с ошибкой подключения к дисплею.
+
+## Предупреждение о калибровке
+
+При старте `ar3_hardware_bringup.launch` **без** аргумента `use_existing_calibrations:=true` выполняется калибровка суставов — **манипулятор физически движется**. Убедитесь, что вокруг него нет препятствий и людей. Аргумент пропускает калибровку и использует сохранённые значения.
+
+## Администрирование контейнера
+
+```bash
+docker ps                                          # статус контейнера ar3-dev
+docker compose -f ~/ar3_ros1_ws/src/docker/docker-compose.yml stop    # остановить
+docker compose -f ~/ar3_ros1_ws/src/docker/docker-compose.yml start   # запустить снова
+docker compose -f ~/ar3_ros1_ws/src/docker/docker-compose.yml down    # удалить контейнер
+docker exec -u root ar3-dev bash -c '<команда>'    # разовое действие от root
+docker exec ar3-dev bash -c '<команда>'            # разовое действие от albert
+```
+Контейнер настроен с `restart: unless-stopped` — после перезагрузки хоста Docker запустит его автоматически (графику не забудьте: `xhost +local:`).
+
+## Типичные проблемы
+
+| Симптом | Причина и решение |
+|---|---|
+| `rviz: cannot connect to display` | Не выданы права X11: выполните `xhost +local:` на хосте |
+| `Failed to connect to serial port /dev/ttyACM0` | Плата не подключена или занята другим процессом; проверьте `ls /dev/ttyACM*` |
+| `catkin_make: command not found` | Не выполнен `source /opt/ros/noetic/setup.bash` (в интерактивном shell `.bashrc` делает это сам) |
+| Сборка не видит зависимости | Пакет не добавлен в `docker/Dockerfile` (rosdep для noetic не работает) |
+| `docker: permission denied` на хосте | Добавьте пользователя в группу `docker`: `sudo usermod -aG docker $USER` (перелогин) |
+
+
 # AR3 Core Software
 This repository provides the software for control of the AR3 arm with ros_control and MoveIt. I hope to provide fellow robotic arm enthusiasts with a starting point to explore using ROS for controlling the arm. The baseline implementation is designed to accomodate the original hardware and firmware, including the message structures for communication. Moving forward, I will do my best to continue to keep it accessible. I plan to explore some interesting concepts that I have in mind for on-arm vision, grippers and human-robot interaction and I will share my projects here if possible.
 
@@ -36,6 +124,7 @@ You may also wish to check out some hardware modifications that I've made for jo
 + **ar3_control**
     + Controlling the arm through the MoveIt user interfaces
     + Provides demo for the move group interface
+    + Provides joint sweep demo (all six joints through their range of motion)
     
 + **ar3_description**
     + Hardware description of arm, urdf etc.
@@ -221,5 +310,41 @@ This is a demo modified from the official MoveIt tutorials. As opposed to manual
   roslaunch ar3_control move_group_demo.launch
   ```
   Follow the command-line instructions to step through the demo. See `ar3_control` for more details.
+
+-----
+
+### Joint Sweep Demo (all six joints)
+
+Demonstrates the range of motion of the manipulator: each joint from 1 to 6 is swept to both sides of the home pose (`ready` from the SRDF) and returned back, one joint at a time. Targets are clipped to the real joint limits and to an optional home-relative window, failed steps are retried with a reduced amplitude.
+
+**It is recommended to run this demo on the simulated arm or in RViz-only demo first, and start on the real arm with a reduced `range_fraction`/`amplitude_scale`.**
+
+* Run any bringup layer first:
+  * RViz-only demo (no arm):
+    ```
+    roslaunch ar3_moveit_config demo.launch
+    ```
+  * Simulated arm in Gazebo:
+    ```
+    roslaunch ar3_gazebo ar3_gazebo_bringup.launch
+    roslaunch ar3_moveit_config ar3_moveit_bringup.launch
+    ```
+  * Real arm (skip the calibration motion if calibrations already exist):
+    ```
+    roslaunch ar3_hardware_interface ar3_hardware_bringup.launch use_existing_calibrations:=true
+    roslaunch ar3_moveit_config ar3_moveit_bringup.launch
+    ```
+* Start the joint sweep demo:
+  ```
+  roslaunch ar3_control joint_sweep_demo.launch
+  ```
+  In the default step mode, press `next` in the RvizVisualToolsGui panel in RViz before every motion. To run the whole sequence automatically:
+  ```
+  roslaunch ar3_control joint_sweep_demo.launch step_mode:=false
+  ```
+* Optional arguments (see `ar3_control` for the full list):
+  * `range_fraction:=0.3` — limit each joint to a 30%-of-range window around home
+  * `amplitude_scale:=0.3` — smaller sweep amplitude
+  * `velocity_scale:=0.2` — slower trajectories
 
 -----

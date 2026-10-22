@@ -1,0 +1,34 @@
+# Развёртывание: docker compose up -d, затем docker compose exec ar3 bash
+# Сборка образа:  docker compose build
+#
+# Перед первым запуском GUI на хосте:  xhost +local:
+#   (файл ~/.Xauthority на хосте отсутствует, авторизация через xhost)
+#
+# Требования к хосту (проверено: Ubuntu с X11-сессией, docker >= 29):
+#   - сеть общая с хостом (network_mode: host) — ROS-мастер и ноды без проброса портов
+#   - USB serial: privileged: true даёт доступ ко всем /dev/ttyACM* и /dev/ttyUSB*,
+#     переживает переподключение платы; группа dialout добавлена в образе
+services:
+  ar3:
+    build: .
+    image: ar3-noetic
+    container_name: ar3-dev
+    privileged: true
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY:-:1}
+      - QT_X11_NO_MITSHM=1 # иначе rviz/rqt под X11 падают на MIT-SHM
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_HOSTNAME=localhost
+    volumes:
+      # Код пакетов: src этого репозитория -> src workspace.
+      # Артефакты сборки (build/, devel/, logs/) остаются в корне workspace
+      # на хосте, т.к. монтируется весь ~/ar3_ros1_ws, а не только src
+      - ${HOME}/ar3_ros1_ws:/home/albert/catkin_ws
+      # X11 для rviz / rqt
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    working_dir: /home/albert/catkin_ws
+    stdin_open: true
+    tty: true
+    command: ["/entrypoint.sh", "sleep", "infinity"]
+    restart: unless-stopped

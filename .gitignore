@@ -1,3 +1,9 @@
+# ROS workspace build artifacts (created in ~/ar3_ros1_ws by catkin_make)
+build/
+devel/
+logs/
+.catkin_tools/
+
 # Prerequisites
 *.d
 
